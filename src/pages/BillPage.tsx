@@ -17,7 +17,7 @@ import ConfidenceBadge from '@/components/ConfidenceBadge';
 import ImpactTable from '@/components/ImpactTable';
 import SectorChart from '@/components/SectorChart';
 import SocietalImpactPanel from '@/components/SocietalImpactPanel';
-import SectorCovarianceGraph from '@/components/SectorCovarianceGraph';
+import BillPropagationGraph from '@/components/BillPropagationGraph';
 
 const BillPage = () => {
   const { slug = '' } = useParams();
@@ -323,8 +323,8 @@ const BillPage = () => {
 
             <SectorChart impacts={bill.impacts} />
 
-            {bill.impacts.length >= 2 && (
-              <SectorCovarianceGraph bills={[bill]} height={460} />
+            {bill.impacts.length >= 1 && (
+              <BillPropagationGraph bill={bill} height={480} />
             )}
 
             <div>

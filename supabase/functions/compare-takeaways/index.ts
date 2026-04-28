@@ -1,12 +1,10 @@
-// Generate plain-English "Key Takeaways" bullets comparing 2-4 bills
-// using the loaded analysis data already produced by analyze-bill.
+// Generate plain-English "Key Takeaways" bullets comparing 2-4 bills using Claude
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
 interface BillSummaryInput {
   number: string;
@@ -14,72 +12,46 @@ interface BillSummaryInput {
   status?: string;
   summary?: string;
   narrativeBrief?: string;
-  impacts: Array<{
-    sector: string;
-    strength: string;
-    economicImpact?: number | null;
-    explanation?: string;
-  }>;
-  societalImpacts?: Array<{
-    dimension: string;
-    direction: string;
-    strength: string;
-    affectedGroups?: string;
-  }>;
+  impacts: Array<{ sector: string; strength: string; economicImpact?: number | null; explanation?: string }>;
+  societalImpacts?: Array<{ dimension: string; direction: string; strength: string; affectedGroups?: string }>;
 }
 
+// Anthropic tool format (input_schema, not parameters)
 const TAKEAWAYS_TOOL = {
-  type: "function",
-  function: {
-    name: "report_comparison_takeaways",
-    description:
-      "Return 4-6 short, specific, plain-English bullet takeaways comparing the bills. Each bullet must reference at least one bill by its number.",
-    parameters: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description:
-            "One single sentence (max 120 chars) summarizing the comparison's biggest insight, like a magazine headline.",
-        },
-        takeaways: {
-          type: "array",
-          minItems: 3,
-          maxItems: 6,
-          items: {
-            type: "object",
-            properties: {
-              text: {
-                type: "string",
-                description:
-                  "A single specific insight, max 200 chars. Use bill numbers and sector names. Avoid hedging language.",
-              },
-              tone: {
-                type: "string",
-                enum: ["positive", "negative", "neutral", "contested"],
-                description:
-                  "positive = clear winner/expansion, negative = clear loser/restriction, contested = bills disagree, neutral = factual contrast.",
-              },
-              icon: {
-                type: "string",
-                enum: [
-                  "trending-up",
-                  "trending-down",
-                  "scale",
-                  "alert-triangle",
-                  "users",
-                  "dollar",
-                  "split",
-                ],
-                description: "Icon hint for the bullet.",
-              },
+  name: "report_comparison_takeaways",
+  description: "Return 4-6 short, specific, plain-English bullet takeaways comparing the bills. Each bullet must reference at least one bill by its number.",
+  input_schema: {
+    type: "object",
+    properties: {
+      headline: {
+        type: "string",
+        description: "One single sentence (max 120 chars) summarizing the comparison's biggest insight, like a magazine headline.",
+      },
+      takeaways: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            text: {
+              type: "string",
+              description: "A single specific insight, max 200 chars. Use bill numbers and sector names. Avoid hedging language.",
             },
-            required: ["text", "tone", "icon"],
+            tone: {
+              type: "string",
+              enum: ["positive", "negative", "neutral", "contested"],
+              description: "positive = clear winner/expansion, negative = clear loser/restriction, contested = bills disagree, neutral = factual contrast.",
+            },
+            icon: {
+              type: "string",
+              enum: ["trending-up", "trending-down", "scale", "alert-triangle", "users", "dollar", "split"],
+              description: "Icon hint for the bullet.",
+            },
           },
+          required: ["text", "tone", "icon"],
         },
       },
-      required: ["headline", "takeaways"],
     },
+    required: ["headline", "takeaways"],
   },
 };
 
@@ -95,10 +67,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
-    // Compact the input so we don't burn tokens on noise.
     const compact = bills.map((b) => ({
       number: b.number,
       title: b.title,
@@ -126,47 +97,43 @@ Deno.serve(async (req) => {
 - No hedging fluff ("may", "could potentially"). Use direct language.
 - Never invent numbers — only cite figures present in the data.`;
 
-    const aiRes = await fetch(AI_URL, {
+    const aiRes = await fetch(ANTHROPIC_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        system: SYSTEM,
         messages: [
-          { role: "system", content: SYSTEM },
           {
             role: "user",
             content: `Compare these ${compact.length} bills and return takeaways:\n\n${JSON.stringify(compact, null, 2)}`,
           },
         ],
         tools: [TAKEAWAYS_TOOL],
-        tool_choice: { type: "function", function: { name: "report_comparison_takeaways" } },
+        tool_choice: { type: "tool", name: "report_comparison_takeaways" },
       }),
     });
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      if (aiRes.status === 429) {
+      if (aiRes.status === 429 || aiRes.status === 529) {
         return new Response(
-          JSON.stringify({ error: "AI rate limit reached. Try again shortly." }),
+          JSON.stringify({ error: "Claude is rate-limited or overloaded. Try again shortly." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      if (aiRes.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Add credits in Settings → Workspace → Usage." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
-      throw new Error(`AI gateway failed [${aiRes.status}]: ${t}`);
+      throw new Error(`Anthropic API failed [${aiRes.status}]: ${t}`);
     }
 
     const aiData = await aiRes.json();
-    const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("AI did not return structured takeaways");
-    const parsed = JSON.parse(toolCall.function.arguments);
+    const toolUse = (aiData?.content ?? []).find((b: { type: string }) => b.type === "tool_use");
+    if (!toolUse) throw new Error("Claude did not return structured takeaways");
+    const parsed = (toolUse as { input: Record<string, unknown> }).input;
 
     return new Response(JSON.stringify(parsed), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-// Scrape a bill page (and its PDF if linkable) and ask Lovable AI for sector impact analysis
+// Scrape a bill page (and its PDF if linkable) and ask Claude for sector impact analysis
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 
@@ -9,7 +9,7 @@ interface AnalyzeRequest {
 }
 
 const FIRECRAWL_V2 = "https://api.firecrawl.dev/v2";
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const CONGRESS_API = "https://api.congress.gov/v3";
 
 const supabaseAdmin = createClient(
@@ -80,7 +80,6 @@ function guessPdfUrl(billUrl: string): string | null {
   return `https://search-prod.lis.state.oh.us/solarapi/v1/general_assembly_${ga}/bills/${bill.toLowerCase()}/IN/00/${bill.toLowerCase()}_00_IN.pdf`;
 }
 
-// Parse a congress.gov URL like https://www.congress.gov/bill/119th-congress/house-bill/1234
 function parseFederalUrl(url: string): { congress: string; type: string; number: string } | null {
   const m = url.match(/congress\.gov\/bill\/(\d+)(?:st|nd|rd|th)-congress\/(house-bill|senate-bill|house-joint-resolution|senate-joint-resolution|house-resolution|senate-resolution|house-concurrent-resolution|senate-concurrent-resolution)\/(\d+)/i);
   if (!m) return null;
@@ -107,17 +106,12 @@ async function fetchFederalBill(parsed: { congress: string; type: string; number
   if (!apiKey) throw new Error("CONGRESS_GOV_API_KEY is not configured");
   const base = `${CONGRESS_API}/bill/${parsed.congress}/${parsed.type}/${parsed.number}`;
 
-  // Metadata
   let meta: Record<string, unknown> | null = null;
   try {
     const r = await fetch(`${base}?api_key=${apiKey}&format=json`);
-    if (r.ok) {
-      const d = await r.json();
-      meta = d?.bill ?? null;
-    }
+    if (r.ok) { const d = await r.json(); meta = d?.bill ?? null; }
   } catch (_) { /* ignore */ }
 
-  // Text versions
   let text = "";
   let textUrl: string | null = null;
   try {
@@ -125,7 +119,6 @@ async function fetchFederalBill(parsed: { congress: string; type: string; number
     if (r.ok) {
       const d = await r.json();
       const versions = (d?.textVersions ?? []) as Array<{ formats?: Array<{ type: string; url: string }> }>;
-      // Prefer Formatted Text → Formatted XML → HTML → PDF (older Congresses often only have PDF)
       let chosen: { type: string; url: string } | null = null;
       let chosenIsPdf = false;
       for (const v of versions) {
@@ -151,26 +144,19 @@ async function fetchFederalBill(parsed: { congress: string; type: string; number
           const tr = await fetch(chosen.url);
           if (tr.ok) {
             const raw = await tr.text();
-            // Strip HTML/XML tags
             text = raw
               .replace(/<script[\s\S]*?<\/script>/gi, " ")
               .replace(/<style[\s\S]*?<\/style>/gi, " ")
               .replace(/<[^>]+>/g, " ")
-              .replace(/&nbsp;/gi, " ")
-              .replace(/&amp;/gi, "&")
-              .replace(/&lt;/gi, "<")
-              .replace(/&gt;/gi, ">")
-              .replace(/&quot;/gi, '"')
-              .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 80000);
+              .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+              .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"')
+              .replace(/\s+/g, " ").trim().slice(0, 80000);
           }
         }
       }
     }
   } catch (_) { /* ignore */ }
 
-  // Actions (timeline)
   let actions: Array<{ date: string; text: string; type?: string }> = [];
   try {
     const r = await fetch(`${base}/actions?api_key=${apiKey}&format=json&limit=50`);
@@ -180,53 +166,38 @@ async function fetchFederalBill(parsed: { congress: string; type: string; number
       actions = list
         .filter((a) => a.actionDate && a.text)
         .map((a) => ({ date: a.actionDate as string, text: a.text as string, type: a.type }))
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 25);
+        .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25);
     }
   } catch (_) { /* ignore */ }
 
-  // Cosponsors
   let cosponsors: Array<{ name: string; party?: string; state?: string }> = [];
   try {
     const r = await fetch(`${base}/cosponsors?api_key=${apiKey}&format=json&limit=20`);
     if (r.ok) {
       const d = await r.json();
       const list = (d?.cosponsors ?? []) as Array<{ fullName?: string; party?: string; state?: string }>;
-      cosponsors = list
-        .filter((c) => c.fullName)
-        .map((c) => ({ name: c.fullName as string, party: c.party, state: c.state }))
-        .slice(0, 20);
+      cosponsors = list.filter((c) => c.fullName)
+        .map((c) => ({ name: c.fullName as string, party: c.party, state: c.state })).slice(0, 20);
     }
   } catch (_) { /* ignore */ }
 
-  // Official CRS summaries — critical for older bills where /text only returns a scanned PDF.
   let summaries: Array<{ date: string; actionDesc: string; text: string }> = [];
   try {
     const r = await fetch(`${base}/summaries?api_key=${apiKey}&format=json`);
     if (r.ok) {
       const d = await r.json();
       const list = (d?.summaries ?? []) as Array<{ actionDate?: string; actionDesc?: string; text?: string }>;
-      summaries = list
-        .filter((s) => s.text)
-        .map((s) => ({
-          date: s.actionDate ?? "",
-          actionDesc: s.actionDesc ?? "",
-          // Strip HTML tags from CRS summary HTML.
-          text: (s.text as string)
-            .replace(/<[^>]+>/g, " ")
-            .replace(/&nbsp;/gi, " ")
-            .replace(/&amp;/gi, "&")
-            .replace(/&lt;/gi, "<")
-            .replace(/&gt;/gi, ">")
-            .replace(/&quot;/gi, '"')
-            .replace(/\s+/g, " ")
-            .trim(),
-        }))
-        .sort((a, b) => b.date.localeCompare(a.date));
+      summaries = list.filter((s) => s.text).map((s) => ({
+        date: s.actionDate ?? "",
+        actionDesc: s.actionDesc ?? "",
+        text: (s.text as string)
+          .replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+          .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"')
+          .replace(/\s+/g, " ").trim(),
+      })).sort((a, b) => b.date.localeCompare(a.date));
     }
   } catch (_) { /* ignore */ }
 
-  // CBO cost estimates — Congress.gov exposes these under /cost-estimates.
   let cbo: { url: string | null; estimate: string | null } = { url: null, estimate: null };
   try {
     const r = await fetch(`${base}/cost-estimates?api_key=${apiKey}&format=json`);
@@ -236,10 +207,7 @@ async function fetchFederalBill(parsed: { congress: string; type: string; number
       if (list.length > 0) {
         const sorted = [...list].sort((a, b) => (b.pubDate ?? "").localeCompare(a.pubDate ?? ""));
         const top = sorted[0];
-        cbo = {
-          url: top.url ?? null,
-          estimate: [top.title, top.description].filter(Boolean).join(" — ").slice(0, 600) || null,
-        };
+        cbo = { url: top.url ?? null, estimate: [top.title, top.description].filter(Boolean).join(" — ").slice(0, 600) || null };
       }
     }
   } catch (_) { /* ignore */ }
@@ -271,89 +239,82 @@ async function fetchPdfTextDirect(pdfUrl: string): Promise<string | null> {
     text = text.replace(/\s+/g, " ").trim();
     if (text.length < 200) return null;
     return text.slice(0, 80000);
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
+// Anthropic tool format (uses input_schema, not parameters)
 const ANALYSIS_TOOL = {
-  type: "function",
-  function: {
-    name: "report_bill_impact",
-    description: "Return a structured economic AND societal impact analysis for an Ohio legislative bill.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        number: { type: "string" },
-        status: { type: "string" },
-        introducedDate: { type: "string" },
-        sponsors: { type: "array", items: { type: "string" } },
-        summary: {
-          type: "string",
-          description:
-            "Plain-language 2-4 sentence factual summary of operative provisions, grounded ONLY in extracted text. If too sparse, return exactly: 'Bill text could not be extracted in enough detail to produce an accurate summary.'",
-        },
-        narrativeBrief: {
-          type: "string",
-          description:
-            "A 3-4 sentence stakeholder-oriented policy brief explaining what this bill means in plain language for everyday Ohioans, businesses, and communities. MUST be grounded in the extracted text and the impacts you identified — no speculation. If text is too sparse, return empty string.",
-        },
-        impacts: {
-          type: "array",
-          description: "Per-sector ECONOMIC impacts using the controlled taxonomy.",
-          items: {
-            type: "object",
-            properties: {
-              sector: {
-                type: "string",
-                description: `Use one of these controlled sectors when applicable: ${CONTROLLED_SECTORS.join(", ")}. If the bill genuinely affects a sector not in this list, prefix with 'Other: ' (e.g. 'Other: Insurance').`,
-              },
-              impactType: {
-                type: "string",
-                enum: ["funding support", "regulation increase", "regulation decrease", "tax change", "subsidy", "deregulation", "program establishment", "administrative change", "definition clarification", "market restriction"],
-              },
-              strength: { type: "string", enum: ["High", "Medium", "Low"] },
-              economicImpact: {
-                type: ["number", "null"],
-                description: "Projected $B over 5 years. Null unless bill text has a specific quantitative anchor (appropriation, tax rate, program size). Never fabricate from baselines.",
-              },
-              quantitativeBasis: {
-                type: "string",
-                description: "If economicImpact is a number, quote the bill text that justifies it. If null, leave empty.",
-              },
-              explanation: { type: "string", description: "1-3 sentence reasoning citing a quoted phrase from the bill text." },
-              assumptions: { type: "string" },
-              confidence: { type: "string", enum: ["High", "Medium", "Low"] },
+  name: "report_bill_impact",
+  description: "Return a structured economic AND societal impact analysis for an Ohio legislative bill.",
+  input_schema: {
+    type: "object",
+    properties: {
+      title: { type: "string" },
+      number: { type: "string" },
+      status: { type: "string" },
+      introducedDate: { type: "string" },
+      sponsors: { type: "array", items: { type: "string" } },
+      summary: {
+        type: "string",
+        description:
+          "Plain-language 2-4 sentence factual summary of operative provisions, grounded ONLY in extracted text. If too sparse, return exactly: 'Bill text could not be extracted in enough detail to produce an accurate summary.'",
+      },
+      narrativeBrief: {
+        type: "string",
+        description:
+          "A 3-4 sentence stakeholder-oriented policy brief explaining what this bill means in plain language for everyday Ohioans, businesses, and communities. MUST be grounded in the extracted text and the impacts you identified — no speculation. If text is too sparse, return empty string.",
+      },
+      impacts: {
+        type: "array",
+        description: "Per-sector ECONOMIC impacts using the controlled taxonomy.",
+        items: {
+          type: "object",
+          properties: {
+            sector: {
+              type: "string",
+              description: `Use one of these controlled sectors when applicable: ${CONTROLLED_SECTORS.join(", ")}. If the bill genuinely affects a sector not in this list, prefix with 'Other: ' (e.g. 'Other: Insurance').`,
             },
-            required: ["sector", "impactType", "strength", "explanation", "confidence"],
-            additionalProperties: false,
-          },
-        },
-        societalImpacts: {
-          type: "array",
-          description: "SOCIETAL impacts (orthogonal to economic). Same strict grounding rules — must cite bill text.",
-          items: {
-            type: "object",
-            properties: {
-              dimension: {
-                type: "string",
-                description: `Use one of these dimensions when applicable: ${SOCIETAL_DIMENSIONS.join(", ")}. Use 'Other: <name>' for novel dimensions.`,
-              },
-              direction: { type: "string", enum: ["Expands", "Restricts", "Reforms", "Mixed"] },
-              strength: { type: "string", enum: ["High", "Medium", "Low"] },
-              affectedGroups: { type: "string", description: "Who is affected (e.g. 'low-income tenants', 'public school students', 'tribal members')." },
-              explanation: { type: "string", description: "1-3 sentence reasoning citing a quoted phrase from the bill text." },
-              confidence: { type: "string", enum: ["High", "Medium", "Low"] },
+            impactType: {
+              type: "string",
+              enum: ["funding support", "regulation increase", "regulation decrease", "tax change", "subsidy", "deregulation", "program establishment", "administrative change", "definition clarification", "market restriction"],
             },
-            required: ["dimension", "direction", "strength", "affectedGroups", "explanation", "confidence"],
-            additionalProperties: false,
+            strength: { type: "string", enum: ["High", "Medium", "Low"] },
+            economicImpact: {
+              type: ["number", "null"],
+              description: "Projected $B over 5 years. Null unless bill text has a specific quantitative anchor (appropriation, tax rate, program size). Never fabricate from baselines.",
+            },
+            quantitativeBasis: {
+              type: "string",
+              description: "If economicImpact is a number, quote the bill text that justifies it. If null, leave empty.",
+            },
+            explanation: { type: "string", description: "1-3 sentence reasoning citing a quoted phrase from the bill text." },
+            assumptions: { type: "string" },
+            confidence: { type: "string", enum: ["High", "Medium", "Low"] },
           },
+          required: ["sector", "impactType", "strength", "explanation", "confidence"],
         },
       },
-      required: ["title", "number", "summary", "impacts", "societalImpacts"],
-      additionalProperties: false,
+      societalImpacts: {
+        type: "array",
+        description: "SOCIETAL impacts (orthogonal to economic). Same strict grounding rules — must cite bill text.",
+        items: {
+          type: "object",
+          properties: {
+            dimension: {
+              type: "string",
+              description: `Use one of these dimensions when applicable: ${SOCIETAL_DIMENSIONS.join(", ")}. Use 'Other: <name>' for novel dimensions.`,
+            },
+            direction: { type: "string", enum: ["Expands", "Restricts", "Reforms", "Mixed"] },
+            strength: { type: "string", enum: ["High", "Medium", "Low"] },
+            affectedGroups: { type: "string", description: "Who is affected (e.g. 'low-income tenants', 'public school students', 'tribal members')." },
+            explanation: { type: "string", description: "1-3 sentence reasoning citing a quoted phrase from the bill text." },
+            confidence: { type: "string", enum: ["High", "Medium", "Low"] },
+          },
+          required: ["dimension", "direction", "strength", "affectedGroups", "explanation", "confidence"],
+        },
+      },
     },
+    required: ["title", "number", "summary", "impacts", "societalImpacts"],
   },
 };
 
@@ -402,8 +363,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
     let pageMd = "";
     let pdfMd = "";
@@ -432,14 +393,10 @@ Deno.serve(async (req) => {
       federalCosponsors = fed.cosponsors;
       federalSummaries = fed.summaries;
       cboInfo = fed.cbo;
-      // If extracted text is sparse (older bills, scanned PDFs), promote the
-      // official CRS summary to be the primary analysis substrate. This is the
-      // most authoritative grounding source the Library of Congress publishes.
       if (federalSummaries.length > 0) {
         const summaryBlock = federalSummaries
           .map((s) => `## CRS Summary (${s.actionDesc}, ${s.date})\n${s.text}`)
           .join("\n\n");
-        // Prepend so the AI sees the structured summary first, then any raw text.
         pdfMd = `${summaryBlock}\n\n${pdfMd}`.slice(0, 80000);
       }
       if (federalMeta) {
@@ -490,31 +447,42 @@ Deno.serve(async (req) => {
     const contentHash = await sha256Hex(combined);
     textExcerpt = (pdfMd || "").slice(0, 1500);
 
-    const aiRes = await fetch(AI_URL, {
+    const aiRes = await fetch(ANTHROPIC_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "claude-opus-4-7",
+        max_tokens: 8192,
+        system: SYSTEM_PROMPT,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: `Source URL: ${url}\n\nAnalyze the bill text below. Report ONLY impacts you can ground in a direct quote. Return empty arrays if there's nothing to cite.\n\n${combined}` },
+          {
+            role: "user",
+            content: `Source URL: ${url}\n\nAnalyze the bill text below. Report ONLY impacts you can ground in a direct quote. Return empty arrays if there's nothing to cite.\n\n${combined}`,
+          },
         ],
         tools: [ANALYSIS_TOOL],
-        tool_choice: { type: "function", function: { name: "report_bill_impact" } },
+        tool_choice: { type: "tool", name: "report_bill_impact" },
       }),
     });
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      if (aiRes.status === 429) return new Response(JSON.stringify({ error: "AI rate limit reached. Try again shortly." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (aiRes.status === 402) return new Response(JSON.stringify({ error: "AI credits exhausted. Add credits in Settings → Workspace → Usage." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      throw new Error(`AI gateway failed [${aiRes.status}]: ${t}`);
+      if (aiRes.status === 429 || aiRes.status === 529) {
+        return new Response(JSON.stringify({ error: "Claude is rate-limited or overloaded. Try again shortly." }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`Anthropic API failed [${aiRes.status}]: ${t}`);
     }
 
     const aiData = await aiRes.json();
-    const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("AI did not return structured analysis");
-    const analysis = JSON.parse(toolCall.function.arguments);
+    const toolUse = (aiData?.content ?? []).find((b: { type: string }) => b.type === "tool_use");
+    if (!toolUse) throw new Error("Claude did not return structured analysis");
+    const analysis = (toolUse as { input: Record<string, unknown> }).input;
 
     const nowIso = new Date().toISOString();
     try {
