@@ -1,0 +1,1 @@
+ALTER TABLE public.bill_analyses ADD COLUMN IF NOT EXISTS cbo_url text, ADD COLUMN IF NOT EXISTS cbo_estimate text;

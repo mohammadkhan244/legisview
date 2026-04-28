@@ -1,0 +1,120 @@
+import { Bill, OhioEconomicData } from '@/types/legislation';
+
+export const ohioEconomicData: OhioEconomicData[] = [
+  { sector: 'Manufacturing', gdpContribution: 112.5, employment: 680, growth: 2.3 },
+  { sector: 'Healthcare', gdpContribution: 98.2, employment: 780, growth: 4.1 },
+  { sector: 'Finance', gdpContribution: 85.6, employment: 290, growth: 3.2 },
+  { sector: 'Technology', gdpContribution: 45.3, employment: 185, growth: 8.5 },
+  { sector: 'Agriculture', gdpContribution: 28.4, employment: 95, growth: 1.2 },
+  { sector: 'Energy', gdpContribution: 38.9, employment: 65, growth: 5.7 },
+  { sector: 'Transportation', gdpContribution: 52.1, employment: 245, growth: 3.8 },
+  { sector: 'Education', gdpContribution: 35.8, employment: 420, growth: 2.1 },
+  { sector: 'Retail', gdpContribution: 67.2, employment: 560, growth: 1.8 },
+  { sector: 'Construction', gdpContribution: 42.6, employment: 235, growth: 4.5 },
+];
+
+export const sampleBills: Bill[] = [
+  {
+    id: 'hb-127',
+    title: 'Ohio Clean Energy Infrastructure Act',
+    number: 'HB 127',
+    status: 'In Committee',
+    introducedDate: '2025-01-15',
+    summary: 'A bill to establish comprehensive clean energy standards and provide funding for renewable energy infrastructure development across Ohio counties.',
+    sponsors: ['Rep. Sarah Mitchell', 'Rep. David Chen'],
+    impacts: [
+      {
+        sector: 'Energy',
+        impactType: 'funding support',
+        strength: 'High',
+        explanation: 'Provides $2.5B in funding for renewable energy projects including solar farms and wind installations.',
+        economicImpact: 4.2,
+      },
+      {
+        sector: 'Manufacturing',
+        impactType: 'program establishment',
+        strength: 'Medium',
+        explanation: 'Establishes incentives for clean energy manufacturing facilities in Ohio.',
+        economicImpact: 2.1,
+      },
+      {
+        sector: 'Construction',
+        impactType: 'funding support',
+        strength: 'High',
+        explanation: 'Creates significant construction jobs for new energy infrastructure.',
+        economicImpact: 3.5,
+      },
+      {
+        sector: 'Agriculture',
+        impactType: 'subsidy',
+        strength: 'Medium',
+        explanation: 'Subsidies for agricultural solar installations and biofuel production.',
+        economicImpact: 0.8,
+      },
+    ],
+  },
+  {
+    id: 'sb-89',
+    title: 'Ohio Healthcare Accessibility Reform',
+    number: 'SB 89',
+    status: 'Introduced',
+    introducedDate: '2025-02-20',
+    summary: 'Legislation to expand healthcare accessibility in rural Ohio counties and regulate pharmaceutical pricing.',
+    sponsors: ['Sen. James Rodriguez', 'Sen. Emily Watson'],
+    impacts: [
+      {
+        sector: 'Healthcare',
+        impactType: 'regulation increase',
+        strength: 'High',
+        explanation: 'Introduces pricing caps on essential medications and expands Medicaid coverage.',
+        economicImpact: -1.2,
+      },
+      {
+        sector: 'Finance',
+        impactType: 'regulation increase',
+        strength: 'Medium',
+        explanation: 'New requirements for health insurance providers operating in Ohio.',
+        economicImpact: -0.5,
+      },
+      {
+        sector: 'Technology',
+        impactType: 'funding support',
+        strength: 'Low',
+        explanation: 'Funding for telemedicine infrastructure in underserved areas.',
+        economicImpact: 0.3,
+      },
+    ],
+  },
+  {
+    id: 'hb-234',
+    title: 'Ohio Innovation and Technology Hub Act',
+    number: 'HB 234',
+    status: 'Passed',
+    introducedDate: '2024-11-05',
+    summary: 'Creates technology innovation zones with tax incentives to attract tech companies and startups to Ohio.',
+    sponsors: ['Rep. Michael Foster', 'Rep. Lisa Park'],
+    impacts: [
+      {
+        sector: 'Technology',
+        impactType: 'tax change',
+        strength: 'High',
+        explanation: 'Significant tax breaks for technology companies establishing operations in designated zones.',
+        economicImpact: 5.8,
+      },
+      {
+        sector: 'Education',
+        impactType: 'funding support',
+        strength: 'Medium',
+        explanation: 'Partnership programs between tech companies and Ohio universities.',
+        economicImpact: 0.6,
+      },
+      {
+        sector: 'Finance',
+        impactType: 'deregulation',
+        strength: 'Low',
+        explanation: 'Streamlined regulations for fintech startups.',
+        economicImpact: 0.4,
+      },
+    ],
+  },
+];
