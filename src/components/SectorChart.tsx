@@ -68,7 +68,7 @@ const SectorChart = ({ impacts }: SectorChartProps) => {
                 <BarChart
                   data={chartData}
                   layout="vertical"
-                  margin={{ left: 20, right: 60, top: 8, bottom: 8 }}
+                  margin={{ left: 4, right: 52, top: 8, bottom: 8 }}
                   barCategoryGap="25%"
                 >
                   <XAxis
@@ -83,8 +83,8 @@ const SectorChart = ({ impacts }: SectorChartProps) => {
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 13, fontWeight: 500 }}
-                    width={110}
+                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12, fontWeight: 500 }}
+                    width={90}
                   />
                   <ReferenceLine x={0} stroke="hsl(var(--border))" />
                   <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={<CustomTooltip />} />

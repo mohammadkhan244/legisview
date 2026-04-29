@@ -212,17 +212,20 @@ const BillPage = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-6 py-8 max-w-5xl">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" onClick={() => navigate('/')} className="gap-1.5">
-            <ArrowLeft className="w-4 h-4" /> Back to search
+      <main className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-5xl">
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <Button variant="ghost" onClick={() => navigate('/')} className="gap-1.5 shrink-0">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Back to search</span>
           </Button>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 sm:gap-2 flex-wrap justify-end">
             <Button variant="outline" size="sm" onClick={share} className="gap-1.5">
-              <Share2 className="w-4 h-4" /> Share
+              <Share2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Share</span>
             </Button>
             <Button variant="outline" size="sm" onClick={() => setCompareOpen(true)} className="gap-1.5">
-              <GitCompare className="w-4 h-4" /> Compare with another bill
+              <GitCompare className="w-4 h-4" />
+              <span className="hidden sm:inline">Compare</span>
             </Button>
             <Button
               variant="outline"
@@ -232,7 +235,7 @@ const BillPage = () => {
               className="gap-1.5"
             >
               {refreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              Re-analyze
+              <span className="hidden sm:inline">Re-analyze</span>
             </Button>
           </div>
         </div>
@@ -247,7 +250,7 @@ const BillPage = () => {
               <span className="font-mono text-primary text-sm">{bill.number}</span>
               <Badge variant="sector">{bill.status}</Badge>
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground mt-3">
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-4 h-4" />
                 Introduced {new Date(bill.introducedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -295,7 +298,7 @@ const BillPage = () => {
             </div>
 
             {/* Impact summary */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
               <Card variant="glass" className="p-4 text-center">
                 <p className="text-sm text-muted-foreground mb-1">Total Est. Impact</p>
                 {hasQuant ? (
@@ -324,7 +327,7 @@ const BillPage = () => {
             <SectorChart impacts={bill.impacts} />
 
             {bill.impacts.length >= 1 && (
-              <BillPropagationGraph bill={bill} height={480} />
+              <BillPropagationGraph bill={bill} height={typeof window !== 'undefined' && window.innerWidth < 640 ? 320 : 460} />
             )}
 
             <div>

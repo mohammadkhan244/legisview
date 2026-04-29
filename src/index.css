@@ -79,6 +79,13 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Ensure vis-network graphs don't cause horizontal scroll on mobile */
+  canvas {
+    max-width: 100%;
+    touch-action: pan-y pinch-zoom;
   }
 
   /* Custom scrollbar */

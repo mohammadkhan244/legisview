@@ -32,6 +32,7 @@ const Index = () => {
   const [chamber, setChamber] = useState<'all' | 'senate' | 'house'>('all');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   /** URLs selected for comparison (max 3). */
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
 
@@ -139,12 +140,12 @@ const Index = () => {
       <Header />
       <HeroSection />
 
-      <main className="container mx-auto px-6 pb-16">
+      <main className="container mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <CompareHistoryStrip />
 
         {/* Sticky compare bar */}
         {selectedForCompare.length > 0 && (
-          <div className="sticky top-2 z-30 mb-4 flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg border border-primary/40 bg-card/95 backdrop-blur shadow-lg">
+          <div className="sticky top-2 z-30 mb-4 flex items-center justify-between gap-2 px-3 sm:px-4 py-2.5 rounded-lg border border-primary/40 bg-card/95 backdrop-blur shadow-lg">
             <div className="flex items-center gap-2 text-sm">
               <GitCompare className="w-4 h-4 text-primary" />
               <span className="font-medium">{selectedForCompare.length} selected for comparison</span>
@@ -201,9 +202,22 @@ const Index = () => {
             ))}
           </div>
 
+          {/* Mobile filter toggle */}
+          <div className="lg:hidden mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="gap-2 w-full sm:w-auto"
+            >
+              <Filter className="w-4 h-4" />
+              {filtersOpen ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+          </div>
+
           <div className="grid lg:grid-cols-[260px_1fr] gap-6">
             {/* Filter sidebar */}
-            <Card className="p-5 h-fit space-y-5 border-border/60">
+            <Card className={`p-5 h-fit space-y-5 border-border/60 ${filtersOpen ? 'block' : 'hidden'} lg:block`}>
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Filter className="w-4 h-4" /> Filters
               </div>
@@ -342,7 +356,7 @@ const Index = () => {
                 </Card>
               )}
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-2 gap-3 sm:gap-4">
                 {results.map((r) => {
                   const isSelected = selectedForCompare.includes(r.url);
                   return (

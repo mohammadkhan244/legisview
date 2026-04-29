@@ -31,14 +31,14 @@ const Header = () => {
 
 const NavItem = ({ icon, label, active = false }: { icon: React.ReactNode; label: string; active?: boolean }) => (
   <button
-    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
       active
         ? 'bg-primary/10 text-primary'
         : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
     }`}
   >
     {icon}
-    {label}
+    <span className="hidden sm:inline">{label}</span>
   </button>
 );
 

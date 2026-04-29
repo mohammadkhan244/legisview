@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 
 const HeroSection = () => {
   return (
-    <section className="relative py-16 overflow-hidden">
+    <section className="relative py-10 sm:py-16 overflow-hidden">
       {/* Background gradient orbs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-float" />
       <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent/10 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }} />
@@ -17,30 +17,30 @@ const HeroSection = () => {
           </div>
           
           {/* Headline */}
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 sm:mb-6 animate-fade-in" style={{ animationDelay: '0.1s' }}>
             Understand the
             <span className="text-gradient"> Economic Impact </span>
             of Ohio Legislation
           </h1>
-          
+
           {/* Subheadline */}
-          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: '0.2s' }}>
             Analyze how proposed bills affect Ohio's economic sectors. Get structured insights on funding, regulations, and projected market impacts.
           </p>
-          
+
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-            <Button variant="hero" size="xl">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-8 sm:mb-12 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+            <Button variant="hero" size="xl" className="w-full sm:w-auto">
               Analyze a Bill
               <ArrowRight className="w-5 h-5" />
             </Button>
-            <Button variant="glass" size="lg">
+            <Button variant="glass" size="lg" className="w-full sm:w-auto">
               View Sample Analysis
             </Button>
           </div>
-          
+
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: '0.4s' }}>
+          <div className="grid grid-cols-3 gap-4 sm:gap-8 max-w-2xl mx-auto animate-fade-in" style={{ animationDelay: '0.4s' }}>
             <StatItem icon={<TrendingUp className="w-5 h-5" />} value="127" label="Bills Tracked" />
             <StatItem icon={<Shield className="w-5 h-5" />} value="12" label="Sectors Analyzed" />
             <StatItem icon={<Sparkles className="w-5 h-5" />} value="$680B" label="Ohio GDP" />
