@@ -485,7 +485,7 @@ const ComparePage = () => {
               <MetricTile
                 label="Net economic impact"
                 value={kpis.anyQuant ? `${kpis.net >= 0 ? '+' : ''}$${kpis.net.toFixed(1)}B` : '—'}
-                hint={kpis.anyQuant ? 'Sum across all bills' : 'No $ anchors found'}
+                hint={kpis.anyQuant ? `${horizonYears}y projection · all bills` : 'No $ anchors found'}
                 tone={kpis.anyQuant ? (kpis.net >= 0 ? 'pos' : 'neg') : 'neutral'}
               />
               <MetricTile

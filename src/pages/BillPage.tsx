@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Loader2, Calendar, Users, Sparkles, RefreshCw, Share2, Clock, FileText, GitCompare, Search, Plus, Calculator } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Calendar, Users, Sparkles, RefreshCw, Share2, Clock, FileText, GitCompare, Search, Plus, Calculator, MapPin, Phone } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Bill } from '@/types/legislation';
@@ -18,6 +18,24 @@ import ImpactTable from '@/components/ImpactTable';
 import SectorChart from '@/components/SectorChart';
 import SocietalImpactPanel from '@/components/SocietalImpactPanel';
 import BillPropagationGraph from '@/components/BillPropagationGraph';
+
+const OHIO_CIVIC_GROUPS: { sectors: string[]; name: string; description: string; url: string }[] = [
+  { sectors: ['Agriculture', 'Food', 'Farming'], name: 'Ohio Farm Bureau', description: 'Advocating for farmers and rural communities', url: 'https://www.ofbf.org' },
+  { sectors: ['Education', 'Schools', 'Higher Education'], name: 'Ohio Education Association', description: 'Ohio teachers, faculty, and education professionals', url: 'https://www.ohea.org' },
+  { sectors: ['Healthcare', 'Medicaid', 'Hospitals', 'Mental Health'], name: 'Ohio Hospital Association', description: 'Hospitals and health systems across Ohio', url: 'https://www.ohiohospitals.org' },
+  { sectors: ['Healthcare', 'Medicare', 'Social Services', 'Elderly'], name: 'AARP Ohio', description: 'Advocacy for Ohioans 50 and older', url: 'https://www.aarp.org/states/ohio/' },
+  { sectors: ['Energy', 'Environment', 'Climate', 'Natural Resources'], name: 'Ohio Environmental Council', description: 'Clean air, clean water, and clean energy for Ohio', url: 'https://theOEC.org' },
+  { sectors: ['Labor', 'Workers', 'Employment', 'Manufacturing'], name: 'Ohio AFL-CIO', description: "Protecting Ohio workers' rights and wages", url: 'https://www.ohioaflcio.org' },
+  { sectors: ['Housing', 'Real Estate', 'Homelessness'], name: 'Coalition on Homelessness & Housing in Ohio', description: 'Affordable housing and ending homelessness statewide', url: 'https://www.cohhio.org' },
+  { sectors: ['Criminal Justice', 'Incarceration', 'Policing', 'Justice'], name: 'Ohio Justice & Policy Center', description: 'Criminal justice reform and reentry support', url: 'https://www.ohiojpc.org' },
+  { sectors: ['Small Business', 'Commerce', 'Business', 'Economy', 'Finance'], name: 'Ohio Chamber of Commerce', description: 'Ohio business advocacy and economic development', url: 'https://www.ohiochamber.com' },
+  { sectors: ['Technology', 'Innovation', 'Digital', 'Broadband'], name: 'Ohio Technology Consortium', description: "Supporting Ohio's technology ecosystem", url: 'https://www.oh-tech.org' },
+  { sectors: ['Transportation', 'Infrastructure', 'Roads'], name: 'Ohio Contractors Association', description: 'Ohio transportation and infrastructure advocacy', url: 'https://www.ohiocontractors.org' },
+  { sectors: ['Defense', 'Veterans', 'Military'], name: 'Ohio Dept. of Veterans Services', description: 'Benefits and services for Ohio veterans', url: 'https://dvs.ohio.gov' },
+  { sectors: ['Social Services', 'Poverty', 'Food', 'Welfare'], name: 'Ohio Association of Foodbanks', description: 'Fighting hunger across all 88 Ohio counties', url: 'https://www.ohiofoodbanks.org' },
+  { sectors: ['Finance', 'Tax', 'Budget', 'Fiscal', 'Government'], name: 'Policy Matters Ohio', description: 'Policy research for a fair and prosperous Ohio', url: 'https://www.policymattersohio.org' },
+  { sectors: ['Non-profit', 'Tribal', 'Civil Rights'], name: 'ACLU of Ohio', description: 'Defending civil liberties for all Ohioans', url: 'https://www.acluohio.org' },
+];
 
 const BillPage = () => {
   const { slug = '' } = useParams();
@@ -374,6 +392,108 @@ const BillPage = () => {
                 </div>
               </div>
             )}
+
+            {/* ── Take Action ── */}
+            {(() => {
+              const jurisdiction = detectJurisdiction(bill.id);
+              const billSectorNames = bill.impacts.map((i) => i.sector.toLowerCase());
+              const relevantGroups = OHIO_CIVIC_GROUPS.filter((g) =>
+                g.sectors.some((kw) =>
+                  billSectorNames.some(
+                    (bs) => bs.includes(kw.toLowerCase()) || kw.toLowerCase().includes(bs),
+                  ),
+                ),
+              );
+              return (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 space-y-5">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-5 h-5 text-primary" />
+                    <h3 className="text-lg font-semibold">Take Action</h3>
+                  </div>
+
+                  {/* Contact sponsors */}
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" /> Contact the bill's sponsors
+                    </h4>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {bill.sponsors.filter((s) => s !== 'Unknown').map((name, i) => (
+                        <a
+                          key={i}
+                          href={
+                            jurisdiction === 'ohio'
+                              ? 'https://www.legislature.ohio.gov/legislators'
+                              : `https://www.congress.gov/search?q=%7B%22source%22%3A%22members%22%2C%22search%22%3A%22${encodeURIComponent(name.replace(/^(Rep\.|Sen\.|Representative|Senator)\s*/i, ''))}%22%7D`
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/60 bg-card/60 hover:border-primary/60 hover:bg-card transition-colors text-sm"
+                        >
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                          {name}
+                        </a>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Not sure who represents you?{' '}
+                      {jurisdiction === 'ohio' ? (
+                        <a
+                          href="https://www.legislature.ohio.gov/legislators/find-your-legislator"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          Find your Ohio legislator →
+                        </a>
+                      ) : (
+                        <>
+                          <a
+                            href="https://www.house.gov/representatives/find-your-representative"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Find your House rep
+                          </a>
+                          {' · '}
+                          <a
+                            href="https://www.senate.gov/senators/senators-contact.htm"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Find your Senator →
+                          </a>
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Ohio civic groups */}
+                  {relevantGroups.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold mb-2 text-foreground flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-primary" /> Ohio civic groups working on these issues
+                      </h4>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        {relevantGroups.slice(0, 6).map((g, i) => (
+                          <a
+                            key={i}
+                            href={g.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex flex-col gap-0.5 p-3 rounded-lg border border-border/50 bg-card/50 hover:border-primary/50 hover:bg-card transition-colors"
+                          >
+                            <span className="text-sm font-medium text-foreground">{g.name}</span>
+                            <span className="text-xs text-muted-foreground">{g.description}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Text excerpt */}
             {bill.textExcerpt && bill.textExcerpt.length > 50 && (

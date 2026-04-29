@@ -31,8 +31,9 @@ const CompareSectorHeatmap = ({ bills, sectors, onSectorClick, scale = 1 }: Prop
     (b.impacts ?? []).find((i) => i.sector === sector);
 
   // Determine max magnitude for color scaling.
+  // Anchor to the unscaled baseline max so cell intensity visually deepens as the horizon extends
   const allValues = bills.flatMap((b) =>
-    (b.impacts ?? []).map((i) => (typeof i.economicImpact === 'number' ? Math.abs(i.economicImpact * scale) : 0)),
+    (b.impacts ?? []).map((i) => (typeof i.economicImpact === 'number' ? Math.abs(i.economicImpact) : 0)),
   );
   const maxMag = Math.max(...allValues, 1);
 

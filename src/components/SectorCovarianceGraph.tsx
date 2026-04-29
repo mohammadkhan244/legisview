@@ -302,9 +302,7 @@ const SectorCovarianceGraph = ({ bills, sectors, scale = 1, height = 520 }: Prop
             size="sm"
             variant={mode === 'quantitative' ? 'default' : 'ghost'}
             onClick={() => setMode('quantitative')}
-            disabled={!hasQuant}
             className="h-7 px-2.5"
-            title={hasQuant ? '' : 'No dollar figures available — try Qualitative.'}
           >
             Quantitative
           </Button>
