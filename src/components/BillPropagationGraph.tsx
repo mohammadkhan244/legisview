@@ -158,33 +158,49 @@ const buildGraph = (bill: Bill) => {
     font: { color: fg, size: 15, bold: true, face: 'inherit' },
   });
 
-  const directSectors = new Set(bill.impacts.map((i) => i.sector));
-
-  // Direct impact nodes (level 1)
+  // Group impacts by sector so multiple Agriculture/Healthcare entries don't create duplicate node IDs
+  const bySector = new Map<string, typeof bill.impacts>();
   bill.impacts.forEach((impact) => {
-    const hasEcon = typeof impact.economicImpact === 'number';
-    const econ = hasEcon ? (impact.economicImpact as number) : 0;
+    const group = bySector.get(impact.sector) ?? [];
+    group.push(impact);
+    bySector.set(impact.sector, group);
+  });
+
+  const directSectors = new Set(bySector.keys());
+
+  // Direct impact nodes (level 1) — one node per unique sector
+  bySector.forEach((impacts, sector) => {
+    // Pick the strongest impact for visual representation
+    const primary = impacts.reduce((a, b) =>
+      (STRENGTH_WEIGHT[b.strength] ?? 0.5) > (STRENGTH_WEIGHT[a.strength] ?? 0.5) ? b : a,
+    );
+
+    const totalEcon = impacts.reduce((sum, i) =>
+      typeof i.economicImpact === 'number' ? sum + i.economicImpact : sum, 0,
+    );
+    const hasEcon = impacts.some((i) => typeof i.economicImpact === 'number');
     const netPos = hasEcon
-      ? econ >= 0
-      : POSITIVE_TYPES.has(impact.impactType)
+      ? totalEcon >= 0
+      : POSITIVE_TYPES.has(primary.impactType)
       ? true
-      : NEGATIVE_TYPES.has(impact.impactType)
+      : NEGATIVE_TYPES.has(primary.impactType)
       ? false
       : true;
 
-    const size = impact.strength === 'High' ? 28 : impact.strength === 'Medium' ? 22 : 16;
-    const edgeWidth = impact.strength === 'High' ? 4 : impact.strength === 'Medium' ? 2.5 : 1.5;
+    const size = primary.strength === 'High' ? 28 : primary.strength === 'Medium' ? 22 : 16;
     const bgColor = netPos ? impactLow : impactHigh;
 
+    const tipLines = [
+      sector,
+      impacts.map((i) => `  · ${i.impactType} (${i.strength})`).join('\n'),
+      hasEcon ? `Net economic: ${totalEcon >= 0 ? '+' : ''}$${Math.abs(totalEcon).toFixed(1)}B` : '',
+      `\n"${primary.explanation.slice(0, 140)}${primary.explanation.length > 140 ? '…' : ''}"`,
+    ].filter(Boolean).join('\n');
+
     nodes.push({
-      id: `d_${impact.sector}`,
-      label: impact.sector,
-      title: [
-        `${impact.sector}`,
-        `Type: ${impact.impactType}  ·  Strength: ${impact.strength}`,
-        hasEcon ? `Economic: ${econ >= 0 ? '+' : ''}$${Math.abs(econ).toFixed(1)}B` : '',
-        `\n"${impact.explanation.slice(0, 140)}${impact.explanation.length > 140 ? '…' : ''}"`,
-      ].filter(Boolean).join('\n'),
+      id: `d_${sector}`,
+      label: sector,
+      title: tipLines,
       shape: 'dot',
       size,
       level: 1,
@@ -192,11 +208,16 @@ const buildGraph = (bill: Bill) => {
       font: { color: fg, size: 12, face: 'inherit' },
     });
 
+    // Collapse multiple impacts on same sector into one combined edge label
+    const edgeWidth = primary.strength === 'High' ? 4 : primary.strength === 'Medium' ? 2.5 : 1.5;
+    const uniqueTypes = [...new Set(impacts.map((i) => IMPACT_LABELS[i.impactType] ?? i.impactType))];
+    const edgeLabel = uniqueTypes.slice(0, 2).join(' + ') + (uniqueTypes.length > 2 ? ' +…' : '');
+
     edges.push({
-      id: `bill->${impact.sector}`,
+      id: `bill->d_${sector}`,
       from: '__bill__',
-      to: `d_${impact.sector}`,
-      label: IMPACT_LABELS[impact.impactType] ?? impact.impactType,
+      to: `d_${sector}`,
+      label: edgeLabel,
       width: edgeWidth,
       color: { color: bgColor, opacity: 0.85 },
       font: { color: fg, size: 10, strokeWidth: 3, strokeColor: card, face: 'inherit', align: 'middle' },
@@ -211,20 +232,35 @@ const buildGraph = (bill: Bill) => {
     { weight: number; sources: Array<{ from: string; mechanism: string }> }
   > = {};
 
-  bill.impacts.forEach((impact) => {
-    const propStrength = PROPAGATION_STRENGTH[impact.impactType] ?? 0.40;
-    const sw = STRENGTH_WEIGHT[impact.strength] ?? 0.5;
-    const baseProp = propStrength * sw;
+  // Use the grouped-by-sector map so each sector contributes once
+  bySector.forEach((impacts, sector) => {
+    // Pick max propagation strength across all impacts for this sector
+    const maxProp = impacts.reduce((best, impact) => {
+      const p = (PROPAGATION_STRENGTH[impact.impactType] ?? 0.40) * (STRENGTH_WEIGHT[impact.strength] ?? 0.5);
+      return p > best ? p : best;
+    }, 0);
 
-    const downstream = SECTOR_DOWNSTREAM[impact.sector] ?? [];
+    // Use the mechanism label from the strongest-propagating impact type
+    const bestImpact = impacts.reduce((a, b) => {
+      const ap = (PROPAGATION_STRENGTH[a.impactType] ?? 0.40) * (STRENGTH_WEIGHT[a.strength] ?? 0.5);
+      const bp = (PROPAGATION_STRENGTH[b.impactType] ?? 0.40) * (STRENGTH_WEIGHT[b.strength] ?? 0.5);
+      return bp > ap ? b : a;
+    });
+
+    const downstream = SECTOR_DOWNSTREAM[sector] ?? [];
     downstream.forEach(({ sector: target, mechanism, weight }) => {
-      if (directSectors.has(target)) return; // already a direct node
-      const totalWeight = baseProp * weight;
+      if (directSectors.has(target)) return;
+      const totalWeight = maxProp * weight;
       if (totalWeight < 0.25) return;
       if (!indirectAccum[target]) indirectAccum[target] = { weight: 0, sources: [] };
       if (totalWeight > indirectAccum[target].weight) indirectAccum[target].weight = totalWeight;
-      indirectAccum[target].sources.push({ from: impact.sector, mechanism });
+      // Avoid duplicate source entries for the same sector
+      if (!indirectAccum[target].sources.find((s) => s.from === sector)) {
+        indirectAccum[target].sources.push({ from: sector, mechanism });
+      }
     });
+
+    void bestImpact; // used above for propagation strength selection
   });
 
   // Top 7 indirect nodes by propagation weight
